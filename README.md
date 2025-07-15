@@ -166,5 +166,242 @@ LBA 99 : 0xFFFFFFFF
    - 소감
 ---
 
+
 ## 3 ~ 4 일차 안내
-2일차 오후 4:30 공개 예정  
+
+### Erase
+삭제 기능 추가  
+
+1. SSD
+   -  `python .\ssd.py E [LBA] [SIZE]`
+      -  ex) `python .\ssd.py E 0 10` - 0번을 포함해, 10 사이즈만큼 삭제 (9까지)
+   -  실제론 삭제가 아니라, 0x00000000 이 된다.
+   -  **1 <= SIZE <= 10**
+   -  예외 처리
+      -  사용법에 올바르지 않는 명령 사용 (파라미터 갯수, 타입 등)
+      -  LBA 가 0 ~ 99 범위에서 벗어나거나, SIZE 가 1 미만 10 초과 
+      -  SIZE 만큼 더했을 때 LBA 가 99 를 초과
+
+2. Test Shell
+   -  `Shell> erase [LBA] [SIZE]`
+      -  ex) `Shell> erase 0 10` - 0번을 포함해, 10 사이즈만큼 삭제 (9까지)
+      -  **단! SSD 애플리케이션과는 다르게 SIZE 의 범위는 10 초과일 수 있다.**
+         -  ex) `Shell> erase 0 50` - 0번을 포함해, 50 사이즈만큼 삭제
+      -  예외 처리
+         -  사용법에 올바르지 않는 명령 사용 (파라미터 갯수, 타입 등)
+         -  LBA 가 0 ~ 99 범위에서 벗어나거나, SIZE 가 1 미만 100 초과  
+         -  SIZE 만큼 더했을 때 LBA 가 99 를 초과
+            -  ex) `Shell> erase 90 20`
+   -  `Shell> erase_range [ST_LBA] [EN_LBA]`
+         -  ex1) `Shell> erase_range 20 22` - 20번부터 22번까지 삭제
+         -  ex2) `Shell> erase_range 0 99` - 0번부터 99번 LBA 까지 전체 삭제
+      -  예외 처리
+         -  사용법에 올바르지 않는 명령 사용 (파라미터 갯수, 타입 등)
+         -  LBA 가 0 ~ 99 범위에서 벗어남
+         -  erase_range 에서 [ST_LBA] 가 [EN_LBA] 보다 클 때
+            -  ex) `Shell> erase_range 99 0`
+   - `Shell> 4_EraseAndWriteAging`
+     - `4_` 라고만 입력해도 실행 가능
+     - 0 ~ 2번 LBA 삭제
+     - Loop 30회
+       - 2번 LBA 랜덤 값
+       - 2번 LBA 다른 랜덤 값
+       - 2 ~ 4번 LBA 삭제
+       - 4번 LBA 랜덤 값
+       - 4번 LBA 다른 랜덤 값
+       - 4 ~ 6번 LBA 삭제
+       - 6번 LBA 랜덤 값
+       - 6번 LBA 다른 랜덤 값
+       - 6 ~ 8번 LBA 삭제
+       - ...
+       - 96 ~ 98번 LBA 삭제
+       - 98번 LBA 랜덤 값
+       - 98번 LBA 다른 랜덤 값
+       - 98 ~ **99**번 LBA 삭제 (인덱스 주의)
+
+### Logger
+Test Shell 에 Logger 클래스 추가  
+
+
+1. 로그 파일은 다음 형태로 기록된다. (로그 포맷 반드시 맞출 것)  
+
+```
+[YY.MM.DD HH:mm] ClassName.methodName()         : log message.
+```
+
+예시는 다음과 같다.  
+```
+[25.07.08 17:04] Sender.sendMessageWithData()   : send and wait sync message.
+[25.07.08 17:04] Message.checkMessage()         : FAIL - Response message didn’t arrive.
+[25.07.08 17:04] Shell.release()                : Bye bye.
+```
+
+2. 다음 메서드를 사용하면 로그가 현재 날짜 / 시간 기준 로그 파일에 기록된다.  
+`logger.print("ClassName.methodName()", "log message.")`  
+즉, Logger 클래스를 하나 만들어야 한다.  
+
+3. 로그 파일 이름은 다음 규칙을 따른다.  
+   - 최초 로그 파일 이름: `latest.log`  
+   - `latest.log` 파일의 용량이 10kb (약 영문 10,000 자) 를 초과하면, 파일 이름을 `until_250708_17h_12m_11s.log` 형태로 변경
+   - 새로운 `latest.log` 파일에 로그 기록
+   - `until_` 파일이 두 개가 되면, 둘 중 더 오래된 로그의 확장자를 `.log` 에서 `.zip` 으로 변경 (실제 압축하는 과정은 없지만, 압축을 가정)
+
+예시는 다음과 같다.  
+- 최초 : `latest.log`
+- 25년 7월 08일 17시 12분 52초에 `latest.log` 10kb 초과: 파일 이름 `until_250708_17h_12m_52s.log` 로 변경 후, 새로운 `latest.log` 생성
+- 25년 7월 10일 09시 00분 00초에 `latest.log` 10kb 초과
+  - 파일 이름 `until_250710_09h_00m_00s.log` 로 변경 후, 새로운 `latest.log` 생성
+  - `until_250708_17h_12m_52s.log` 의 확장자를 `.zip` 으로 변경 => `until_250708_17h_12m_52s.zip`
+
+### Runner
+테스트 셸을 실행하는 방법은 다음과 같았다.  
+
+```powershell
+python .\shell.py
+```
+
+옵션을 추가하겠다.  
+
+```powershell
+python .\shell.py .\path\to\shell_script.txt
+```
+
+`shell_script.txt` 엔 다음 내용이 적혀있다.  
+
+```
+1_FullWriteAndReadCompare
+2_PartialLBAWrite
+3_WriteReadAging
+4_EraseAndWriteAging
+```
+
+즉, 지금까지 Test Shell 에 직접 `1_` , `2_` 라고만 실행했던 것을, `shell_script.txt` 에 적힌 목록대로 실행하는 기능을 만들어보자.  
+
+
+출력은 다음과 같다.  
+
+```
+1_FullWriteAndReadCompare  ___   Run...Pass
+2_PartialLBAWrite          ___   Run...Pass
+3_WriteReadAging           ___   Run...FAIL!
+```
+
+- Run... 이 먼저 출력되고, 해당 테스트가 끝날때까지 기다린 후, Pass / FAIL! 을 옆에 출력한다.  
+- 위 경우, `3_` 실행 중 실패한 경우이며, `4_` 를 실행하지 않고 즉시 중단한다.  
+
+
+
+### Command Buffer
+SSD 애플리케이션의 성능을 올리기 위해, 무조건 명령어를 실행하지 않고, buffer를 활용해 효율적으로 명령어를 수행해보자.  
+
+- 실제로 프로젝트를 진행하다보면, 이 기능을 구현하면 오히려 실행 속도가 저하되는 현상을 볼 수 있다. `ssd_nand.txt` 라는 파일이 SSD 를 대신하고, 다섯개의 buffer는 다섯개의 파일로 관리되기 때문이다.  
+- 우리 목적은, `ssd_nand.txt` 가 실제 SSD 라고 가정할 때, 해당 파일의 변경을 최소화하는 것이다. 실제 SSD 는 자주 변경할수록 수명이 떨어지고 성능이 저하되기 때문이다.  
+
+
+`.\buffer` 폴더에 다음 다섯개 파일을 생성한다.  
+`1_empty` , `2_empty` , `3_empty` , `4_empty` , `5_empty`  
+
+- 다섯 개 파일은 확장자가 없다.  
+- 다섯 개 파일의 내용은 존재하지 않는다. 오로지 파일 이름만 활용한다.  
+
+
+**예시1**  
+비효율적인 버퍼 관리를 먼저 보자.  
+다음 다섯개 파일이 존재한다면?  
+`1_W_20_0xABCDABCD` , `2_W_20_0x12341234` , `3_E_20_1` , `4_empty` , `5_empty`  
+
+아래 명령이 buffer에 기록되어 있는 것  
+1. 20번 LBA 에 0xABCDABCD 기록
+2. 20번 LBA 에 0x12341234 기록
+3. 20번 LBA 부터 사이즈 1만큼 삭제 (즉, 20번만 삭제)
+
+생각해보면, 맨 마지막것만 실행하면 된다. 왜냐면 어차피 E 명령어로 삭제될 것이기 때문이다.  
+
+따라서, **명령어가 들어오는 순서대로 buffer를 단순히 기록하면 안된다.**  
+
+1. 최초: `1_empty` , `2_empty` , `3_empty` , `4_empty` , `5_empty`  
+2. 1번 buffer 기록: `1_W_20_0xABCDABCD` , `2_empty` , `3_empty` , `4_empty` , `5_empty`  
+3. 2번 buffer 기록: `1_W_20_0xABCDABCD` , `2_W_20_0x12341234` , `3_empty` , `4_empty` , `5_empty`  
+   
+이것은 비효율적이다. 2번 buffer의 명령에 의해, 1번 buffer는 아무 의미 없는 명령이 되었다. 따라서, 순서 3번은 다음과 같이 되어야 한다.  
+
+   3. 2번 buffer 기록: `1_W_20_0x12341234` , `2_empty` , `3_empty` , `4_empty` , `5_empty`  
+
+그리고 `E_20_1` 명령이 들어올 차례가 되었는데, 마찬가지로 `1_W_20_0x12341234` 는 효율을 위해서 삭제되어야 한다.  
+
+최종적으로, 다음과 같은 다섯 개 파일이 존재한다.  
+`1_E_20_1` , `2_empty` , `3_empty` , `4_empty` , `5_empty`  
+
+
+**예시2**  
+다음 다섯개 파일이 존재한다.  
+`1_W_50_0xAAAABBBB` , `2_W_20_0xABABCCCC` , `3_empty` , `4_empty` , `5_empty`
+
+이 상황에서, 다음 명령어가 들어온다 가정하자.  
+
+```powershell
+python .\ssd.py R 50
+```
+
+그럼 과연 평소대로 `ssd_nand.txt` 파일을 실행해서, 50번에 있는 값을 찾아서, `ssd_output.txt` 에 해당 값을 기록하는것이 효율적일까?  
+그럴 필요 없다. 왜냐면 buffer 에 의하면 50번 LBA 엔 0xAAAABBBB 가 기록된 것이 확실하기 때문에, 그 값을 가져와서 `ssd_output.txt` 에 기록하면 된다.  
+즉, **가능한 buffer에 먼저 접근** 하고, `ssd_nand.txt` 에 대한 접근을 최소화해야만 한다.  
+
+
+**예시3**  
+다음 다섯개 파일이 존재한다.  
+`1_W_20_0xABCDABCD` , `2_E_10_4` , `3_empty` , `4_empty` , `5_empty`  
+
+
+이 상황에서, 다음 명령이 3번 buffer에 들어올 차례가 되었다.  
+`3_E_12_3`  
+
+
+buffer 의 목적은 **명령어를 줄이는 것** 이기 때문에, 3번 buffer 에 넣는 대신 2번 buffer 와 3번 buffer 를 **새로운 명령어로** 통합할수도 있다.  
+`1_W_20_0xABCDABCD` , `2_E_10_5` , `3_empty` , `4_empty` , `5_empty`  
+
+- 단, E 명령의 size 는 10 을 넘을 수 없음에 유의하자.  
+
+
+**Flush 기능 추가**  
+SSD 애플리케이션과 Test Shell 애플리케이션에 하나의 기능 (F / flush) 을 더 추가한다.  
+
+F 는 Flush 기능이며, buffer 에 있는 **모든 명령어를 수행**하고, buffer 전체를 비우는 역할을 한다.  
+- 비운다? 각각의 파일명을 `1_empty` , `2_empty` ... `5_empty` 로 변경하는것을 뜻한다.    
+
+- 사용법
+  - SSD 애플리케이션
+    - `python .\ssd.py F`
+  - Test Shell 애플리케이션
+    - `Shell> flush`
+  
+Q. 잠깐, Flush 가 실행되기 전엔 `ssd_nand.txt` 에 실제 기록되지 않는 것이 아닌가? 그렇다면 이제 프로그램은 Flush 를 실행해야만 변경이 반영되는 것인가?  
+A. 실제론 그렇다. 그러나, 다음 상황을 생각해보자.
+
+**ssd_nand.txt**  
+```
+00  0x99998888
+01  0xAAAABBBB
+02  0xFFFFFFFF
+...
+99 0x00000000
+```
+
+**buffer files**
+```
+1_W_01_0x12341234 2_empty  3_empty  4_empty  5_empty
+```
+
+위 상황을 잘 보면, 실제 `ssd_nand.txt` 의 01 에 기록된 값은 0xAAAABBBB 이지만, 결국 프로그램은 buffer를 먼저 참고할 것이기 때문에 0x12341234 가 저장되어 있다고 **간주할 수 있다.** 이는 Flush 를 통해 buffer가 비워지고 최종 반영될 뿐이다.  
+
+
+**세부사항**  
+- buffer 파일은 항상 5개다.  
+- Read 는 Buffer 에 기록할 필요가 없다. `ssd_nand.txt` 를 변경하지 않는 작업이기 때문이다.  
+- 다섯 개 buffer 가 꽉 찬 상태에서 새로운 명령어가 들어오면, Flush 명령어 입력할 필요 없이 자동으로 flush 수행 후, 새로운 명령어를 buffer 에 채운다.  
+- 목적을 항상 생각하자. buffer의 존재 이유는 `ssd_nand.txt` 의 쓰기 접근을 최소화하는 것이다. 즉, W / E 명령을 최대한 줄이는 방법을 생각해야 한다. 명령어가 늘어나면 오히려 잘못된 것이다.  
+- buffer 는 모든 요구사항 중 가장 어려운 부분이다. 효율적으로 buffer를 관리하는 알고리즘을 각 팀별로 생각해내야만 한다. 최대한 다양한 상황을 고려해보자.  
+
+---
+# 발표 안내사항
+4일차 오후 4:30 공개 예정  
